@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AR Footsteps Prototype (Local)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100%;
+      background: #000;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #fff;
+    }
+    #overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at top, #111 0, #000 60%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      z-index: 10;
+    }
+    #overlay h1 {
+      margin-bottom: 0.5rem;
+      font-size: 1.5rem;
+    }
+    #overlay p {
+      max-width: 340px;
+      margin-bottom: 1.5rem;
+      opacity: 0.8;
+    }
+    #startButton {
+      padding: 0.9rem 1.6rem;
+      border-radius: 999px;
+      border: none;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #ffb347;
+      color: #111;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+    }
+    #startButton:active {
+      transform: translateY(1px) scale(0.99);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+
+    #infoMsg {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.7);
+      padding: 0.5rem 1rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      z-index: 20;
+      display: none;
+      max-width: 90%;
+      text-align: center;
+    }
+
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="overlay">
+    <h1>Restaurant Footsteps Prototype</h1>
+    <p>
+      Hold your phone upright and tap the button. If motion sensors are allowed,
+      you can look around by moving your phone. Otherwise, drag on the screen to look around.
+    </p>
+    <button id="startButton">Tap to start</button>
+  </div>
+
+  <div id="infoMsg"></div>
+
+  <!-- LOCAL scripts (no CDNs!) -->
+  <script src="./three.min.js"></script>
+  <script src="./DeviceOrientationControls.js"></script>
+  <script src="./OrbitControls.js"></script>
+
+  <script>
+    let camera, scene, renderer;
+    let controls = null; // DeviceOrientationControls or OrbitControls
+
+    const overlayEl = document.getElementById('overlay');
+    const startButton = document.getElementById('startButton');
+    const infoMsgEl = document.getElementById('infoMsg');
+
+    function showInfo(msg, durationMs) {
+      if (!infoMsgEl) return;
+      infoMsgEl.textContent = msg;
+      infoMsgEl.style.display = 'block';
+      if (durationMs) {
+        setTimeout(() => {
+          infoMsgEl.style.display = 'none';
+        }, durationMs);
+      }
+    }
+
+    function initScene() {
+      // Renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(window.devicePixelRatio || 1);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // Scene
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x000000);
+
+      // Camera
+      camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        100
+      );
+      camera.position.set(0, 1.6, 4); // slightly back so you see more at first
+      camera.lookAt(0, 1.0, -3);
+
+      // Lights
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.7);
+      hemiLight.position.set(0, 20, 0);
+      scene.add(hemiLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(3, 10, 5);
+      dirLight.castShadow = true;
+      scene.add(dirLight);
+
+      // Floor
+      const floorSize = 40;
+      const floorGeo = new THREE.PlaneGeometry(floorSize, floorSize);
+      const floorMat = new THREE.MeshStandardMaterial({
+        color: 0x202020,
+        metalness: 0.2,
+        roughness: 0.9
+      });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      // Grid for visual reference
+      const grid = new THREE.GridHelper(floorSize, floorSize / 2, 0x555555, 0x333333);
+      scene.add(grid);
+
+      // Footsteps
+      createFootstepsPath();
+
+      window.addEventListener('resize', onWindowResize, false);
+
+      animate();
+    }
+
+    function createFootstepsPath() {
+      const footstepsGroup = new THREE.Group();
+      scene.add(footstepsGroup);
+
+      const footLength = 0.4;
+      const footWidth = 0.2;
+      const stepDistance = 0.8;
+      const numSteps = 12;
+      const yOffset = 0.01;
+
+      const leftMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffc857,
+        metalness: 0.1,
+        roughness: 0.4
+      });
+      const rightMaterial = new THREE.MeshStandardMaterial({
+        color: 0xff9f1c,
+        metalness: 0.1,
+        roughness: 0.4
+      });
+
+      const footGeo = new THREE.BoxGeometry(footLength, 0.02, footWidth);
+
+      for (let i = 0; i < numSteps; i++) {
+        const isLeft = i % 2 === 0;
+        const mesh = new THREE.Mesh(footGeo, isLeft ? leftMaterial : rightMaterial);
+
+        const z = -1.5 - i * stepDistance;
+        const x = isLeft ? -0.18 : 0.18;
+
+        mesh.position.set(x, yOffset, z);
+        mesh.rotation.y = (isLeft ? 1 : -1) * 0.25;
+
+        mesh.castShadow = true;
+        footstepsGroup.add(mesh);
+      }
+
+      const targetGeo = new THREE.SphereGeometry(0.25, 24, 24);
+      const targetMat = new THREE.MeshStandardMaterial({
+        color: 0x00ffcc,
+        emissive: 0x00ffcc,
+        emissiveIntensity: 0.7
+      });
+      const target = new THREE.Mesh(targetGeo, targetMat);
+      target.position.set(0, 0.4, -1.5 - numSteps * stepDistance - 0.5);
+      target.castShadow = true;
+      footstepsGroup.add(target);
+    }
+
+    function onWindowResize() {
+      if (!camera || !renderer) return;
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (controls && typeof controls.update === 'function') {
+        controls.update();
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    // Try to enable device orientation; resolve true/false
+    function enableDeviceOrientation() {
+      return new Promise((resolve) => {
+        if (!window.DeviceOrientationEvent) {
+          resolve(false);
+          return;
+        }
+
+        // iOS 13+ permission pattern
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+          DeviceOrientationEvent.requestPermission()
+            .then((state) => {
+              if (state === 'granted') {
+                resolve(true);
+              } else {
+                resolve(false);
+              }
+            })
+            .catch(() => {
+              resolve(false);
+            });
+        } else {
+          // Android / others usually don't require explicit permission in code
+          resolve(true);
+        }
+      });
+    }
+
+    async function startExperience() {
+      // Hide overlay immediately (visual feedback)
+      if (overlayEl) {
+        overlayEl.style.display = 'none';
+      }
+
+      // Clear existing controls if any
+      if (controls && controls.dispose) {
+        controls.dispose();
+      }
+      controls = null;
+
+      // Try orientation
+      const orientationOK = await enableDeviceOrientation();
+
+      if (orientationOK && window.THREE && THREE.DeviceOrientationControls) {
+        controls = new THREE.DeviceOrientationControls(camera);
+        controls.connect();
+        showInfo('Move your phone around to look at the footsteps.', 5000);
+      } else {
+        // Fallback: Orbit (drag) controls
+        if (window.THREE && THREE.OrbitControls) {
+          controls = new THREE.OrbitControls(camera, renderer.domElement);
+          controls.enableDamping = true;
+          controls.dampingFactor = 0.07;
+          controls.enablePan = false;
+          controls.target.set(0, 1.0, -3);
+          showInfo('Device orientation not available. Drag on the screen to look around.', 6000);
+        } else {
+          showInfo('Controls could not be initialized. Check your local JS files.', 8000);
+        }
+      }
+    }
+
+    // Wait until everything (including local scripts) has loaded
+    window.addEventListener('load', () => {
+      if (typeof THREE === 'undefined') {
+        showInfo('three.min.js not found. Make sure three.min.js is in the same folder.', 10000);
+        console.error('THREE is not defined. three.min.js not loaded.');
+        return;
+      }
+
+      initScene();
+
+      startButton.addEventListener('click', () => {
+        startExperience();
+      });
+    });
+  </script>
+</body>
+</html>
