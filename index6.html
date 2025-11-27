@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>AR Footsteps Navigation - Enhanced</title>
+
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+        <title>Minimal AR Cube</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+        <style>
+            body { margin: 0; overflow: hidden; background: #000; }
+            #ar-btn { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); padding: 16px 32px; font-size: 1.2rem; border-radius: 8px; border: none; background: #4CAF50; color: #fff; cursor: pointer; z-index: 10; }
+        </style>
+    </head>
+    <body>
+        <button id="ar-btn">Start AR</button>
+        <script>
+        let camera, scene, renderer;
+        let xrSession = null;
+
+        document.getElementById('ar-btn').onclick = async () => {
+            if (!navigator.xr) {
+                alert('WebXR not supported. Use Chrome on Android.');
+                return;
+            }
+            const supported = await navigator.xr.isSessionSupported('immersive-ar');
+            if (!supported) {
+                alert('AR not supported on this device.');
+                return;
+            }
+            startAR();
+        };
+
+        async function startAR() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            // Add a simple cube
+            const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+            const material = new THREE.MeshNormalMaterial();
+            const cube = new THREE.Mesh(geometry, material);
+            cube.position.set(0, 0, -0.7);
+            scene.add(cube);
+
+            // Lighting
+            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+
+            try {
+                xrSession = await navigator.xr.requestSession('immersive-ar', { requiredFeatures: [] });
+                renderer.xr.setSession(xrSession);
+                document.getElementById('ar-btn').style.display = 'none';
+                renderer.setAnimationLoop(() => {
+                    renderer.render(scene, camera);
+                });
+            } catch (err) {
+                alert('Failed to start AR session: ' + err.message);
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            if (camera && renderer) {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        });
+        </script>
+    </body>
+    </html>
