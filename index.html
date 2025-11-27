@@ -1,310 +1,578 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>AR Footsteps Prototype (Local)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      height: 100%;
-      background: #000;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: #fff;
-    }
-    #overlay {
-      position: fixed;
-      inset: 0;
-      background: radial-gradient(circle at top, #111 0, #000 60%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 20px;
-      z-index: 10;
-    }
-    #overlay h1 {
-      margin-bottom: 0.5rem;
-      font-size: 1.5rem;
-    }
-    #overlay p {
-      max-width: 340px;
-      margin-bottom: 1.5rem;
-      opacity: 0.8;
-    }
-    #startButton {
-      padding: 0.9rem 1.6rem;
-      border-radius: 999px;
-      border: none;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      background: #ffb347;
-      color: #111;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
-    }
-    #startButton:active {
-      transform: translateY(1px) scale(0.99);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>AR Footsteps Navigation - Enhanced</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            overflow: hidden;
+        }
 
-    #infoMsg {
-      position: fixed;
-      bottom: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.7);
-      padding: 0.5rem 1rem;
-      border-radius: 999px;
-      font-size: 0.8rem;
-      z-index: 20;
-      display: none;
-      max-width: 90%;
-      text-align: center;
-    }
+        #container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+            transition: opacity 0.3s ease;
+        }
 
-    canvas {
-      display: block;
-    }
-  </style>
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+            max-width: 450px;
+        }
+
+        button {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 18px 45px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #ar-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ar-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+        }
+
+        #instructions-panel {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            padding: 15px 25px;
+            border-radius: 20px;
+            max-width: 90%;
+            text-align: center;
+        }
+
+        #instructions {
+            margin: 0;
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            pointer-events: all;
+        }
+
+        .control-btn {
+            background: rgba(255,255,255,0.9);
+            color: #667eea;
+            border: none;
+            padding: 12px 24px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+        }
+
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+
+        #stats {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 12px 18px;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        .error {
+            color: #ff6b6b;
+            margin-top: 1rem;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+        }
+
+        .feature-list {
+            text-align: left;
+            margin: 20px auto;
+            max-width: 300px;
+            font-size: 0.9rem;
+        }
+
+        .feature-list li {
+            margin: 8px 0;
+            opacity: 0.9;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .pulsing {
+            animation: pulse 2s ease-in-out infinite;
+        }
+    </style>
 </head>
 <body>
-  <div id="overlay">
-    <h1>Restaurant Footsteps Prototype</h1>
-    <p>
-      Hold your phone upright and tap the button. If motion sensors are allowed,
-      you can look around by moving your phone. Otherwise, drag on the screen to look around.
-    </p>
-    <button id="startButton">Tap to start</button>
-  </div>
+    <div id="container">
+        <h1>🥾 AR Footsteps</h1>
+        <p class="subtitle">Interactive footstep navigation in augmented reality</p>
+        
+        <ul class="feature-list">
+            <li>✨ Real-time ground detection</li>
+            <li>👣 Animated footstep placement</li>
+            <li>🎨 Color customization</li>
+            <li>🔄 Auto-alternating feet</li>
+            <li>📍 Distance tracking</li>
+        </ul>
 
-  <div id="infoMsg"></div>
+        <button id="start-ar">Start AR Experience</button>
+        <p id="error-message" class="error" style="display: none;"></p>
+    </div>
 
-  <!-- LOCAL scripts (no CDNs!) -->
-  <script src="./three.min.js"></script>
-  <script src="./DeviceOrientationControls.js"></script>
-  <script src="./OrbitControls.js"></script>
+    <div id="ar-overlay">
+        <div id="instructions-panel">
+            <p id="instructions" class="pulsing">Point your device at the ground to begin</p>
+        </div>
+        
+        <div id="stats">
+            <div>Footsteps: <strong id="footstep-count">0</strong></div>
+            <div>Distance: <strong id="distance">0m</strong></div>
+        </div>
 
-  <script>
-    let camera, scene, renderer;
-    let controls = null; // DeviceOrientationControls or OrbitControls
+        <div id="controls">
+            <button class="control-btn" id="clear-btn">Clear Path</button>
+            <button class="control-btn" id="color-btn">Change Color</button>
+            <button class="control-btn" id="exit-btn">Exit AR</button>
+        </div>
+    </div>
 
-    const overlayEl = document.getElementById('overlay');
-    const startButton = document.getElementById('startButton');
-    const infoMsgEl = document.getElementById('infoMsg');
+    <script>
+        // Global variables
+        let camera, scene, renderer;
+        let reticle;
+        let hitTestSource = null;
+        let footsteps = [];
+        let xrSession = null;
+        let currentColor = 0x4CAF50;
+        let totalDistance = 0;
+        let lastFootstepPosition = null;
 
-    function showInfo(msg, durationMs) {
-      if (!infoMsgEl) return;
-      infoMsgEl.textContent = msg;
-      infoMsgEl.style.display = 'block';
-      if (durationMs) {
-        setTimeout(() => {
-          infoMsgEl.style.display = 'none';
-        }, durationMs);
-      }
-    }
+        // Color palette
+        const colors = [
+            { name: 'Green', value: 0x4CAF50 },
+            { name: 'Blue', value: 0x2196F3 },
+            { name: 'Purple', value: 0x9C27B0 },
+            { name: 'Orange', value: 0xFF9800 },
+            { name: 'Pink', value: 0xE91E63 },
+            { name: 'Teal', value: 0x009688 }
+        ];
+        let colorIndex = 0;
 
-    function initScene() {
-      // Renderer
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      renderer.setPixelRatio(window.devicePixelRatio || 1);
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(renderer.domElement);
-
-      // Scene
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x000000);
-
-      // Camera
-      camera = new THREE.PerspectiveCamera(
-        75,
-        window.innerWidth / window.innerHeight,
-        0.1,
-        100
-      );
-      camera.position.set(0, 1.6, 4); // slightly back so you see more at first
-      camera.lookAt(0, 1.0, -3);
-
-      // Lights
-      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.7);
-      hemiLight.position.set(0, 20, 0);
-      scene.add(hemiLight);
-
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(3, 10, 5);
-      dirLight.castShadow = true;
-      scene.add(dirLight);
-
-      // Floor
-      const floorSize = 40;
-      const floorGeo = new THREE.PlaneGeometry(floorSize, floorSize);
-      const floorMat = new THREE.MeshStandardMaterial({
-        color: 0x202020,
-        metalness: 0.2,
-        roughness: 0.9
-      });
-      const floor = new THREE.Mesh(floorGeo, floorMat);
-      floor.rotation.x = -Math.PI / 2;
-      floor.receiveShadow = true;
-      scene.add(floor);
-
-      // Grid for visual reference
-      const grid = new THREE.GridHelper(floorSize, floorSize / 2, 0x555555, 0x333333);
-      scene.add(grid);
-
-      // Footsteps
-      createFootstepsPath();
-
-      window.addEventListener('resize', onWindowResize, false);
-
-      animate();
-    }
-
-    function createFootstepsPath() {
-      const footstepsGroup = new THREE.Group();
-      scene.add(footstepsGroup);
-
-      const footLength = 0.4;
-      const footWidth = 0.2;
-      const stepDistance = 0.8;
-      const numSteps = 12;
-      const yOffset = 0.01;
-
-      const leftMaterial = new THREE.MeshStandardMaterial({
-        color: 0xffc857,
-        metalness: 0.1,
-        roughness: 0.4
-      });
-      const rightMaterial = new THREE.MeshStandardMaterial({
-        color: 0xff9f1c,
-        metalness: 0.1,
-        roughness: 0.4
-      });
-
-      const footGeo = new THREE.BoxGeometry(footLength, 0.02, footWidth);
-
-      for (let i = 0; i < numSteps; i++) {
-        const isLeft = i % 2 === 0;
-        const mesh = new THREE.Mesh(footGeo, isLeft ? leftMaterial : rightMaterial);
-
-        const z = -1.5 - i * stepDistance;
-        const x = isLeft ? -0.18 : 0.18;
-
-        mesh.position.set(x, yOffset, z);
-        mesh.rotation.y = (isLeft ? 1 : -1) * 0.25;
-
-        mesh.castShadow = true;
-        footstepsGroup.add(mesh);
-      }
-
-      const targetGeo = new THREE.SphereGeometry(0.25, 24, 24);
-      const targetMat = new THREE.MeshStandardMaterial({
-        color: 0x00ffcc,
-        emissive: 0x00ffcc,
-        emissiveIntensity: 0.7
-      });
-      const target = new THREE.Mesh(targetGeo, targetMat);
-      target.position.set(0, 0.4, -1.5 - numSteps * stepDistance - 0.5);
-      target.castShadow = true;
-      footstepsGroup.add(target);
-    }
-
-    function onWindowResize() {
-      if (!camera || !renderer) return;
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    function animate() {
-      requestAnimationFrame(animate);
-
-      if (controls && typeof controls.update === 'function') {
-        controls.update();
-      }
-
-      renderer.render(scene, camera);
-    }
-
-    // Try to enable device orientation; resolve true/false
-    function enableDeviceOrientation() {
-      return new Promise((resolve) => {
-        if (!window.DeviceOrientationEvent) {
-          resolve(false);
-          return;
+        // Check WebXR support
+        function checkARSupport() {
+            if (!navigator.xr) {
+                showError('WebXR not supported. Please use Chrome on Android.');
+                return false;
+            }
+            return true;
         }
 
-        // iOS 13+ permission pattern
-        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-          DeviceOrientationEvent.requestPermission()
-            .then((state) => {
-              if (state === 'granted') {
-                resolve(true);
-              } else {
-                resolve(false);
-              }
-            })
-            .catch(() => {
-              resolve(false);
+        // Initialize
+        document.getElementById('start-ar').addEventListener('click', async () => {
+            if (!checkARSupport()) return;
+
+            try {
+                const supported = await navigator.xr.isSessionSupported('immersive-ar');
+                if (!supported) {
+                    showError('AR not supported on this device. You need an ARCore-compatible Android device with Chrome.');
+                    return;
+                }
+                
+                await initXR();
+            } catch (err) {
+                showError('Error starting AR: ' + err.message);
+                console.error(err);
+            }
+        });
+
+        // Control buttons
+        document.getElementById('clear-btn').addEventListener('click', clearFootsteps);
+        document.getElementById('color-btn').addEventListener('click', changeColor);
+        document.getElementById('exit-btn').addEventListener('click', exitAR);
+
+        async function initXR() {
+            // Create scene
+            scene = new THREE.Scene();
+
+            // Create camera
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+            // Add lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(0, 5, 0);
+            scene.add(directionalLight);
+
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true, 
+                alpha: true 
             });
-        } else {
-          // Android / others usually don't require explicit permission in code
-          resolve(true);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            renderer.shadowMap.enabled = true;
+            renderer.domElement.id = 'ar-canvas';
+
+            // Create reticle
+            createReticle();
+
+            // Request AR session
+            try {
+                xrSession = await navigator.xr.requestSession('immersive-ar', {
+                    requiredFeatures: ['hit-test'],
+                    optionalFeatures: ['dom-overlay'],
+                    domOverlay: { root: document.body }
+                });
+
+                xrSession.updateRenderState({
+                    baseLayer: new THREE.XRWebGLLayer(xrSession, renderer.getContext())
+                });
+
+                const referenceSpace = await xrSession.requestReferenceSpace('local');
+                const viewerSpace = await xrSession.requestReferenceSpace('viewer');
+
+                // Set up hit testing
+                xrSession.requestHitTestSource({ space: viewerSpace }).then((source) => {
+                    hitTestSource = source;
+                });
+
+                // Handle session end
+                xrSession.addEventListener('end', onSessionEnd);
+
+                // Handle select (tap) events
+                xrSession.addEventListener('select', onSelect);
+
+                // Start render loop
+                renderer.xr.setReferenceSpace(referenceSpace);
+                renderer.xr.setSession(xrSession);
+
+                // Update UI
+                document.getElementById('container').style.display = 'none';
+                document.getElementById('ar-overlay').style.display = 'block';
+                document.body.appendChild(renderer.domElement);
+
+                // Start animation loop
+                renderer.setAnimationLoop(render);
+
+                updateInstructions('Tap the screen to place footsteps');
+            } catch (err) {
+                showError('Failed to start AR session: ' + err.message);
+            }
         }
-      });
-    }
 
-    async function startExperience() {
-      // Hide overlay immediately (visual feedback)
-      if (overlayEl) {
-        overlayEl.style.display = 'none';
-      }
+        function createReticle() {
+            const reticleGroup = new THREE.Group();
+            
+            // Outer ring
+            const outerRing = new THREE.RingGeometry(0.09, 0.11, 32).rotateX(-Math.PI / 2);
+            const outerMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xffffff,
+                opacity: 0.9,
+                transparent: true
+            });
+            const outerMesh = new THREE.Mesh(outerRing, outerMaterial);
+            reticleGroup.add(outerMesh);
 
-      // Clear existing controls if any
-      if (controls && controls.dispose) {
-        controls.dispose();
-      }
-      controls = null;
+            // Inner dot
+            const innerCircle = new THREE.CircleGeometry(0.02, 16).rotateX(-Math.PI / 2);
+            const innerMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xffffff,
+                opacity: 1,
+                transparent: true
+            });
+            const innerMesh = new THREE.Mesh(innerCircle, innerMaterial);
+            innerMesh.position.y = 0.001;
+            reticleGroup.add(innerMesh);
 
-      // Try orientation
-      const orientationOK = await enableDeviceOrientation();
-
-      if (orientationOK && window.THREE && THREE.DeviceOrientationControls) {
-        controls = new THREE.DeviceOrientationControls(camera);
-        controls.connect();
-        showInfo('Move your phone around to look at the footsteps.', 5000);
-      } else {
-        // Fallback: Orbit (drag) controls
-        if (window.THREE && THREE.OrbitControls) {
-          controls = new THREE.OrbitControls(camera, renderer.domElement);
-          controls.enableDamping = true;
-          controls.dampingFactor = 0.07;
-          controls.enablePan = false;
-          controls.target.set(0, 1.0, -3);
-          showInfo('Device orientation not available. Drag on the screen to look around.', 6000);
-        } else {
-          showInfo('Controls could not be initialized. Check your local JS files.', 8000);
+            reticle = reticleGroup;
+            reticle.matrixAutoUpdate = false;
+            reticle.visible = false;
+            scene.add(reticle);
         }
-      }
-    }
 
-    // Wait until everything (including local scripts) has loaded
-    window.addEventListener('load', () => {
-      if (typeof THREE === 'undefined') {
-        showInfo('three.min.js not found. Make sure three.min.js is in the same folder.', 10000);
-        console.error('THREE is not defined. three.min.js not loaded.');
-        return;
-      }
+        function onSelect() {
+            if (reticle.visible) {
+                placeFootstep(reticle.matrix);
+            }
+        }
 
-      initScene();
+        function placeFootstep(matrix) {
+            const footstepGroup = createFootstep(footsteps.length % 2 === 0 ? 'left' : 'right');
+            footstepGroup.matrix.copy(matrix);
+            footstepGroup.matrixAutoUpdate = false;
+            
+            // Calculate position for distance tracking
+            const position = new THREE.Vector3();
+            position.setFromMatrixPosition(matrix);
+            
+            if (lastFootstepPosition) {
+                const distance = position.distanceTo(lastFootstepPosition);
+                totalDistance += distance;
+                updateStats();
+            }
+            lastFootstepPosition = position.clone();
+            
+            scene.add(footstepGroup);
+            footsteps.push(footstepGroup);
+            
+            // Animate appearance
+            animateFootstepIn(footstepGroup);
+            
+            updateStats();
+            updateInstructions(`Great! ${footsteps.length} footstep${footsteps.length !== 1 ? 's' : ''} placed`);
+        }
 
-      startButton.addEventListener('click', () => {
-        startExperience();
-      });
-    });
-  </script>
+        function createFootstep(foot) {
+            const group = new THREE.Group();
+            
+            // Create footprint shape
+            const footShape = new THREE.Shape();
+            
+            if (foot === 'left') {
+                // Left foot outline
+                footShape.moveTo(-0.05, 0);
+                footShape.lineTo(-0.05, 0.12);
+                footShape.bezierCurveTo(-0.05, 0.14, -0.03, 0.16, 0, 0.16);
+                footShape.bezierCurveTo(0.03, 0.16, 0.05, 0.14, 0.05, 0.12);
+                footShape.lineTo(0.05, 0);
+                footShape.lineTo(-0.05, 0);
+            } else {
+                // Right foot outline (mirrored)
+                footShape.moveTo(0.05, 0);
+                footShape.lineTo(0.05, 0.12);
+                footShape.bezierCurveTo(0.05, 0.14, 0.03, 0.16, 0, 0.16);
+                footShape.bezierCurveTo(-0.03, 0.16, -0.05, 0.14, -0.05, 0.12);
+                footShape.lineTo(-0.05, 0);
+                footShape.lineTo(0.05, 0);
+            }
+
+            // Extrude the shape
+            const extrudeSettings = { 
+                depth: 0.008, 
+                bevelEnabled: true,
+                bevelThickness: 0.002,
+                bevelSize: 0.002,
+                bevelSegments: 3
+            };
+            const geometry = new THREE.ExtrudeGeometry(footShape, extrudeSettings);
+            geometry.rotateX(-Math.PI / 2);
+            
+            const material = new THREE.MeshStandardMaterial({ 
+                color: currentColor,
+                opacity: 0.85,
+                transparent: true,
+                roughness: 0.6,
+                metalness: 0.2
+            });
+            
+            const footprint = new THREE.Mesh(geometry, material);
+            group.add(footprint);
+            
+            // Add toes
+            for (let i = 0; i < 5; i++) {
+                const toeSize = 0.01 - i * 0.0015;
+                const toeGeometry = new THREE.SphereGeometry(toeSize, 16, 16);
+                const toe = new THREE.Mesh(toeGeometry, material);
+                
+                if (foot === 'left') {
+                    toe.position.set(-0.035 + i * 0.018, toeSize/2, 0.18 - i * 0.012);
+                } else {
+                    toe.position.set(0.035 - i * 0.018, toeSize/2, 0.18 - i * 0.012);
+                }
+                
+                group.add(toe);
+            }
+            
+            return group;
+        }
+
+        function animateFootstepIn(footstepGroup) {
+            footstepGroup.children.forEach(child => {
+                child.scale.set(0.01, 0.01, 0.01);
+            });
+
+            const duration = 300; // ms
+            const startTime = Date.now();
+
+            const animate = () => {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const scale = progress;
+
+                footstepGroup.children.forEach(child => {
+                    child.scale.set(scale, scale, scale);
+                });
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                }
+            };
+
+            animate();
+        }
+
+        function clearFootsteps() {
+            footsteps.forEach(f => scene.remove(f));
+            footsteps = [];
+            totalDistance = 0;
+            lastFootstepPosition = null;
+            updateStats();
+            updateInstructions('Path cleared. Tap to start a new path');
+        }
+
+        function changeColor() {
+            colorIndex = (colorIndex + 1) % colors.length;
+            currentColor = colors[colorIndex].value;
+            updateInstructions(`Color changed to ${colors[colorIndex].name}`);
+        }
+
+        function exitAR() {
+            if (xrSession) {
+                xrSession.end();
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('footstep-count').textContent = footsteps.length;
+            document.getElementById('distance').textContent = totalDistance.toFixed(2) + 'm';
+        }
+
+        function updateInstructions(text) {
+            const instrEl = document.getElementById('instructions');
+            instrEl.textContent = text;
+            instrEl.classList.remove('pulsing');
+            setTimeout(() => instrEl.classList.add('pulsing'), 100);
+        }
+
+        function render(timestamp, frame) {
+            if (frame) {
+                const referenceSpace = renderer.xr.getReferenceSpace();
+
+                if (hitTestSource) {
+                    const hitTestResults = frame.getHitTestResults(hitTestSource);
+                    
+                    if (hitTestResults.length > 0) {
+                        const hit = hitTestResults[0];
+                        const pose = hit.getPose(referenceSpace);
+                        
+                        if (pose) {
+                            reticle.visible = true;
+                            reticle.matrix.fromArray(pose.transform.matrix);
+                        }
+                    } else {
+                        reticle.visible = false;
+                    }
+                }
+
+                renderer.render(scene, camera);
+            }
+        }
+
+        function onSessionEnd() {
+            hitTestSource = null;
+            xrSession = null;
+            
+            document.getElementById('ar-overlay').style.display = 'none';
+            document.getElementById('container').style.display = 'flex';
+            
+            footsteps.forEach(f => scene.remove(f));
+            footsteps = [];
+            totalDistance = 0;
+            lastFootstepPosition = null;
+            colorIndex = 0;
+            currentColor = colors[0].value;
+        }
+
+        function showError(message) {
+            const errorEl = document.getElementById('error-message');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            document.getElementById('start-ar').disabled = true;
+        }
+
+        window.addEventListener('resize', () => {
+            if (camera && renderer) {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        });
+    </script>
 </body>
 </html>
