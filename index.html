@@ -300,8 +300,12 @@
                     domOverlay: { root: document.body }
                 });
 
+                // Make sure WebGL context is XR compatible
+                const gl = renderer.getContext();
+                await gl.makeXRCompatible();
+
                 xrSession.updateRenderState({
-                    baseLayer: new THREE.XRWebGLLayer(xrSession, renderer.getContext())
+                    baseLayer: new XRWebGLLayer(xrSession, gl)
                 });
 
                 const referenceSpace = await xrSession.requestReferenceSpace('local');
